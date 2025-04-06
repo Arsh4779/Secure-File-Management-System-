@@ -153,7 +153,6 @@ void view_metadata(const char *username) {
     printf("File: %s | Size: %ld bytes\n", filename, size);
     log_action(username, "Metadata", filename);
 }
-
 void menu() {
     int choice;
     do {
@@ -169,7 +168,6 @@ void menu() {
         }
     } while (choice != 5);
 }
-
 int main() {
     load_users();
     if (authenticate()) menu();
