@@ -1,1 +1,6 @@
-
+[Sun Apr  6 14:35:10 2025] User: user123 | Action: Login | File: -
+[Sun Apr  6 14:36:02 2025] User: user123 | Action: Write | File: notes.txt
+[Sun Apr  6 14:37:15 2025] User: user123 | Action: Read | File: notes.txt
+[Sun Apr  6 14:38:27 2025] User: user123 | Action: Share | File: notes.txt
+[Sun Apr  6 14:39:12 2025] User: user123 | Action: Metadata | File: notes.txt
+[Sun Apr  6 14:40:03 2025] User: user123 | Action: Logout | File: -
