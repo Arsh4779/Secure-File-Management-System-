@@ -5,12 +5,11 @@
 #include <time.h>
 
 #define MAX_USERS 1000
-#define MAX_FILES 100
 
 typedef struct {
     char username[50];
     char password[50];
-    char role[10]; // "admin" or "user"
+    char role[10];
 } User;
 
 User users[MAX_USERS];
@@ -19,15 +18,14 @@ int user_count = 0;
 char current_user[50];
 char current_role[10];
 
-// Log action to file
-void log_action(const char *action) {
+void log_action(const char *username, const char *action, const char *filename) {
     FILE *log = fopen("log.txt", "a");
+    if (!log) return;
     time_t now = time(NULL);
-    fprintf(log, "[%s] %s by %s (%s)\n", strtok(ctime(&now), "\n"), action, current_user, current_role);
+    fprintf(log, "[%s] User: %s | Action: %s | File: %s\n", strtok(ctime(&now), "\n"), username, action, filename);
     fclose(log);
 }
 
-// Load users from users.txt
 void load_users() {
     FILE *fp = fopen("users.txt", "r");
     if (!fp) {
@@ -49,13 +47,11 @@ void load_users() {
     fclose(fp);
 }
 
-// OTP generator for 2FA
 int generate_otp() {
     srand(time(NULL));
     return 100000 + rand() % 900000;
 }
 
-// User authentication with 2FA
 bool authenticate() {
     char username[50], password[50];
     printf("Username: "); scanf("%s", username);
@@ -71,7 +67,7 @@ bool authenticate() {
             if (user_otp == otp) {
                 strcpy(current_user, username);
                 strcpy(current_role, users[i].role);
-                log_action("Login successful");
+                log_action(username, "Login", "-");
                 return true;
             } else {
                 printf("Incorrect OTP.\n");
@@ -83,84 +79,92 @@ bool authenticate() {
     return false;
 }
 
-// File operations
-void read_file() {
-    char filename[50];
+void read_file(const char *username) {
+    char filename[100];
     printf("Enter filename to read: ");
     scanf("%s", filename);
 
     FILE *fp = fopen(filename, "r");
     if (!fp) {
-        printf("File not found.\n");
-        log_action("Failed to read file");
+        printf("Error: File not found.\n");
+        log_action(username, "Read-Failed", filename);
         return;
     }
+
+    printf("\n--- File Content ---\n");
     char ch;
     while ((ch = fgetc(fp)) != EOF) putchar(ch);
     fclose(fp);
-    log_action("Read file");
+    printf("\n--- End of File ---\n");
+
+    log_action(username, "Read", filename);
 }
 
-void write_file() {
-    char filename[50], data[100];
+void write_file(const char *username) {
+    char filename[100];
+    char data[1000];
+
     printf("Enter filename to write: ");
     scanf("%s", filename);
-    printf("Enter data: ");
-    scanf(" %[^"]", data);
 
     FILE *fp = fopen(filename, "w");
     if (!fp) {
-        printf("Unable to write file.\n");
-        log_action("Failed to write file");
+        printf("Error opening file.\n");
         return;
     }
-    fprintf(fp, "%s", data);
+
+    printf("Enter content to write (type END on a new line to finish):\n");
+    getchar();
+    while (1) {
+        fgets(data, sizeof(data), stdin);
+        if (strncmp(data, "END", 3) == 0)
+            break;
+        fputs(data, fp);
+    }
     fclose(fp);
-    log_action("Wrote to file");
+    log_action(username, "Write", filename);
+    printf("File written successfully.\n");
 }
 
-void share_file() {
-    char filename[50], user[50];
+void share_file(const char *username) {
+    char filename[100], target_user[50];
     printf("Enter filename to share: ");
     scanf("%s", filename);
-    printf("Share with user: ");
-    scanf("%s", user);
-    // Simulate sharing
-    printf("File '%s' shared with '%s'.\n", filename, user);
-    log_action("Shared file");
+    printf("Enter username to share with: ");
+    scanf("%s", target_user);
+    printf("File '%s' shared with '%s'. (Simulation)\n", filename, target_user);
+    log_action(username, "Share", filename);
 }
 
-void view_metadata() {
-    char filename[50];
+void view_metadata(const char *username) {
+    char filename[100];
     printf("Enter filename to view metadata: ");
     scanf("%s", filename);
 
     FILE *fp = fopen(filename, "r");
     if (!fp) {
         printf("File not found.\n");
-        log_action("Failed to view metadata");
+        log_action(username, "Metadata-Failed", filename);
         return;
     }
-
     fseek(fp, 0L, SEEK_END);
     long size = ftell(fp);
     fclose(fp);
     printf("File: %s | Size: %ld bytes\n", filename, size);
-    log_action("Viewed metadata");
+    log_action(username, "Metadata", filename);
 }
 
-// Main menu
-void show_menu() {
+void menu() {
     int choice;
     do {
         printf("\n1. Read File\n2. Write File\n3. Share File\n4. View Metadata\n5. Logout\nEnter choice: ");
         scanf("%d", &choice);
         switch (choice) {
-            case 1: read_file(); break;
-            case 2: write_file(); break;
-            case 3: share_file(); break;
-            case 4: view_metadata(); break;
-            case 5: log_action("Logout"); printf("Logged out.\n"); break;
+            case 1: read_file(current_user); break;
+            case 2: write_file(current_user); break;
+            case 3: share_file(current_user); break;
+            case 4: view_metadata(current_user); break;
+            case 5: log_action(current_user, "Logout", "-"); printf("Logged out.\n"); break;
             default: printf("Invalid choice.\n");
         }
     } while (choice != 5);
@@ -168,8 +172,6 @@ void show_menu() {
 
 int main() {
     load_users();
-    if (authenticate()) {
-        show_menu();
-    }
+    if (authenticate()) menu();
     return 0;
 }
