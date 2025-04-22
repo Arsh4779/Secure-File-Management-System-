@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Secure File Manager</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #e0eafc, #cfdef3);
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      color: #333;
+    }
+    .form-container {
+      background: #fff;
+      padding: 25px;
+      margin: 40px auto;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      max-width: 500px;
+    }
+    input, textarea, button, select {
+      width: 100%;
+      margin-top: 12px;
+      padding: 12px;
+      font-size: 1em;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .back-button {
+      background-color: #aaa;
+      color: #fff;
+      margin-top: 10px;
+    }
+    .file-list, .log-area {
+      text-align: left;
+      margin-top: 20px;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 0.95em;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    h1 {
+      font-size: 2.5em;
+      margin-top: 60px;
+      color: #1d3557;
+    }
+    #home p {
+      font-size: 1.2em;
+      margin-bottom: 30px;
+      color: #555;
+    }
+    #writeModal {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      z-index: 10;
+    }
+    #overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 5;
+    }
+    .hidden { display: none; }
+    #home {
+      padding: 60px 20px;
+    }
+    #home button {
+      width: 200px;
+      margin: 10px;
+      font-size: 1.1em;
+    }
+  </style>
+</head>
+<body>
+
+<div id="home">
+  <h1>🔐 Secure File Management System</h1>
+  <p>Encrypt, manage, and protect your files with ease. Role-based access, threat detection, and more.</p>
+  <button onclick="showLogin()">Login</button>
+  <button onclick="showRegister()">Register</button>
+</div>
+
+<div id="register" class="form-container hidden">
+  <h3>Create Account</h3>
+  <input id="newUsername" type="text" placeholder="Username" />
+  <input id="newPassword" type="password" placeholder="Password" />
+  <input id="newEmail" type="email" placeholder="Email" />
+  <select id="newRole">
+    <option value="user">User</option>
+    <option value="admin">Admin</option>
+  </select>
+  <button onclick="register()">Register</button>
+  <button class="back-button" onclick="backToHome()">Back</button>
+</div>
+
+<div id="login" class="form-container hidden">
+  <h3>Login</h3>
+  <input id="username" type="text" placeholder="Username" />
+  <input id="password" type="password" placeholder="Password" />
+  <button onclick="login()">Login</button>
+  <button class="back-button" onclick="backToHome()">Back</button>
+</div>
+
+<div id="otp" class="form-container hidden">
+  <h3>OTP Verification</h3>
+  <input id="otpInput" type="text" placeholder="Enter OTP" />
+  <button onclick="verifyOTP()">Verify OTP</button>
+  <button class="back-button" onclick="showLogin()">Back</button>
+</div>
+
+<div id="dashboard" class="form-container hidden">
+  <h3>Welcome <span id="userDisplay"></span> (<span id="roleDisplay"></span>)</h3>
+  <button onclick="openWriteFileModal()">Write File</button>
+  <button onclick="readFile()">Read File</button>
+  <button onclick="deleteFile()">Delete File (Admin Only)</button>
+
+  <div class="file-list">
+    <h4>Your Files:</h4>
+    <ul id="fileList"></ul>
+  </div>
+
+  <div class="log-area">
+    <h4>Activity Logs:</h4>
+    <div id="logs"></div>
+  </div>
+  <button class="back-button" onclick="logout()">Logout</button>
+</div>
+
+<div id="writeModal" class="hidden">
+  <h3>Write New File</h3>
+  <input id="newFileName" placeholder="Filename" />
+  <textarea id="newFileContent" placeholder="Content..."></textarea>
+  <button onclick="writeFile()">Save</button>
+  <button onclick="closeWriteFileModal()">Cancel</button>
+</div>
+<div id="overlay" class="hidden" onclick="closeWriteFileModal()"></div>
+
+<script>
+let currentOTP = Math.floor(100000 + Math.random() * 900000);
+let currentUser = null;
+let currentRole = null;
+let cryptoKey = null;
+const filesDB = {};
+const logsDB = {};
+
+function showLogin() {
+  hideAll();
+  document.getElementById('login').classList.remove('hidden');
+}
+function showRegister() {
+  hideAll();
+  document.getElementById('register').classList.remove('hidden');
+}
+function backToHome() {
+  hideAll();
+  document.getElementById('home').classList.remove('hidden');
+}
+function hideAll() {
+  document.querySelectorAll('.form-container, #home').forEach(el => el.classList.add('hidden'));
+}
+
+function register() {
+  const user = document.getElementById("newUsername").value;
+  const pass = document.getElementById("newPassword").value;
+  const email = document.getElementById("newEmail").value;
+  const role = document.getElementById("newRole").value;
+
+  if (!user || !pass || !email) return alert("All fields are required.");
+  if (localStorage.getItem(user)) return alert("Username already exists.");
+
+  localStorage.setItem(user, JSON.stringify({ username: user, password: pass, email, role }));
+  alert("Registration successful!");
+  backToHome();
+}
+
+function login() {
+  const user = document.getElementById("username").value;
+  const pass = document.getElementById("password").value;
+  const data = JSON.parse(localStorage.getItem(user) || "{}");
+
+  if (data.password === pass) {
+    currentUser = user;
+    currentRole = data.role;
+    currentOTP = Math.floor(100000 + Math.random() * 900000);
+    alert(`OTP sent: ${currentOTP}`);
+    hideAll();
+    document.getElementById('otp').classList.remove('hidden');
+  } else {
+    alert("Invalid credentials.");
+  }
+}
+
+async function verifyOTP() {
+  const otp = document.getElementById("otpInput").value;
+  if (otp == currentOTP) {
+    await generateKey();
+    document.getElementById("userDisplay").innerText = currentUser;
+    document.getElementById("roleDisplay").innerText = currentRole;
+    hideAll();
+    document.getElementById("dashboard").classList.remove("hidden");
+    refreshFileList();
+  } else {
+    alert("Incorrect OTP.");
+  }
+}
+
+async function generateKey() {
+  cryptoKey = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function encryptText(text) {
+  const enc = new TextEncoder().encode(text);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, cryptoKey, enc);
+  alert("✅ Encryption done successfully.");
+  return { ciphertext: Array.from(new Uint8Array(encrypted)), iv: Array.from(iv) };
+}
+
+async function decryptText(cipher, iv) {
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: new Uint8Array(iv) },
+    cryptoKey,
+    new Uint8Array(cipher)
+  );
+  alert("✅ Decryption completed.");
+  return new TextDecoder().decode(decrypted);
+}
+
+function openWriteFileModal() {
+  document.getElementById("writeModal").classList.remove("hidden");
+  document.getElementById("overlay").classList.remove("hidden");
+}
+function closeWriteFileModal() {
+  document.getElementById("newFileName").value = "";
+  document.getElementById("newFileContent").value = "";
+  document.getElementById("writeModal").classList.add("hidden");
+  document.getElementById("overlay").classList.add("hidden");
+}
+
+async function writeFile() {
+  const name = document.getElementById("newFileName").value;
+  const content = document.getElementById("newFileContent").value;
+  if (!name || !content) return alert("Filename and content required.");
+  if (detectThreats(content)) return;
+
+  const encrypted = await encryptText(content);
+  const metadata = {
+    created: new Date().toLocaleString(),
+    modified: new Date().toLocaleString(),
+    size: content.length
+  };
+
+  if (!filesDB[currentUser]) filesDB[currentUser] = {};
+  filesDB[currentUser][name] = { content: encrypted.ciphertext, iv: encrypted.iv, metadata };
+  logActivity(`File "${name}" written securely.`);
+  closeWriteFileModal();
+  refreshFileList();
+}
+
+async function readFile() {
+  const name = prompt("Enter filename to read:");
+  const file = filesDB[currentUser]?.[name];
+  if (file) {
+    const decrypted = await decryptText(file.content, file.iv);
+    alert(`File content:\n${decrypted}\n\nMetadata:\n${JSON.stringify(file.metadata, null, 2)}`);
+    logActivity(`File "${name}" read.`);
+  } else {
+    alert("File not found.");
+  }
+}
+
+function deleteFile() {
+  if (currentRole !== 'admin') return alert("Only admin can delete files.");
+  const name = prompt("Enter filename to delete:");
+  if (filesDB[currentUser]?.[name]) {
+    delete filesDB[currentUser][name];
+    logActivity(`File "${name}" deleted.`);
+    refreshFileList();
+  } else {
+    alert("File not found.");
+  }
+}
+
+function detectThreats(text) {
+  if (text.length > 1024) {
+    alert("⚠️ Potential buffer overflow detected!");
+    logActivity("Threat: Buffer Overflow detected.");
+    return true;
+  }
+  const malware = ["<script>", "DROP TABLE", "exec(", "rm -rf", "wget", "curl"];
+  if (malware.some(p => text.includes(p))) {
+    alert("⚠️ Malware pattern detected!");
+    logActivity("Threat: Malware detected.");
+    return true;
+  }
+  return false;
+}
+
+function refreshFileList() {
+  const userFiles = filesDB[currentUser] || {};
+  const list = Object.entries(userFiles).map(
+    ([name, f]) => `<li>${name} — ${f.metadata.size} bytes — ${f.metadata.created}</li>`
+  ).join('');
+  document.getElementById("fileList").innerHTML = list || "<li>No files yet.</li>";
+}
+
+function logActivity(message) {
+  const timestamp = new Date().toLocaleString();
+  if (!logsDB[currentUser]) logsDB[currentUser] = [];
+  logsDB[currentUser].push(`[${timestamp}] ${message}`);
+  document.getElementById("logs").innerHTML = logsDB[currentUser].join('<br>');
+}
+
+function logout() {
+  currentUser = null;
+  currentRole = null;
+  backToHome();
+}
+</script>
+
+</body>
+</html>
+
